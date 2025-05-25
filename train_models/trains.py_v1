@@ -1,0 +1,54 @@
+import pandas as pd
+import joblib
+import os
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder
+from datetime import datetime
+
+DATA_PATH = './dataset/personal_expense_classification.csv'
+
+def preprocess_date(df):
+    df['date'] = pd.to_datetime(df['date'], errors='coerce')
+    df['day'] = df['date'].dt.day.fillna(0).astype(int)
+    df['month'] = df['date'].dt.month.fillna(0).astype(int)
+    df['year'] = df['date'].dt.year.fillna(0).astype(int)
+    return df
+
+def main():
+    df = pd.read_csv(DATA_PATH)
+    
+    df = df.dropna(subset=['description', 'category', 'amount'])
+    df = preprocess_date(df)
+
+    le = LabelEncoder()
+    df['category_encoded'] = le.fit_transform(df['category'])
+
+    tfidf = TfidfVectorizer(stop_words='english', max_features=3000)
+    X_text = tfidf.fit_transform(df['description'])
+
+    y_cat = df['category_encoded']
+    clf = LogisticRegression(max_iter=300)
+    clf.fit(X_text, y_cat)
+
+    X_reg = df[['day', 'month', 'year', 'category_encoded']]
+    y_reg = df['amount']
+
+    X_train, X_test, y_train, y_test = train_test_split(X_reg, y_reg, test_size=0.2, random_state=42)
+    rf = RandomForestRegressor(n_estimators=100, random_state=42)
+    rf.fit(X_train, y_train)
+
+    model_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'app', 'expenses', 'models')
+    os.makedirs(model_dir, exist_ok=True)
+
+    joblib.dump(clf, os.path.join(model_dir, 'logistic_regression.pkl'))
+    joblib.dump(tfidf, os.path.join(model_dir, 'tfidf_vectorizer.pkl'))
+    joblib.dump(rf, os.path.join(model_dir, 'random_forest_regressor.pkl'))
+    joblib.dump(le, os.path.join(model_dir, 'label_encoder.pkl'))
+
+    print("Models and encoders saved successfully.")
+
+if __name__ == "__main__":
+    main()
