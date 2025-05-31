@@ -1,54 +1,96 @@
-import pandas as pd
-import joblib
 import os
+import pandas as pd
+import nltk
+import re
+from nltk.corpus import stopwords
+from sklearn.model_selection import train_test_split
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
-from datetime import datetime
+from sklearn.metrics import classification_report
+import joblib
 
-DATA_PATH = './dataset/personal_expense_classification.csv'
+nltk.download('stopwords')
 
-def preprocess_date(df):
-    df['date'] = pd.to_datetime(df['date'], errors='coerce')
-    df['day'] = df['date'].dt.day.fillna(0).astype(int)
-    df['month'] = df['date'].dt.month.fillna(0).astype(int)
-    df['year'] = df['date'].dt.year.fillna(0).astype(int)
-    return df
+DATA_PATH = './dataset/expense_labels2.csv'
+MODEL_DIR = '/opt/expensetrackergpt/project/app/expenses/models'
+
+def clean_text(text):
+    """Basic text cleaning."""
+    text = text.lower()
+    text = re.sub(r'[^a-z\s]', '', text)
+    return text
 
 def main():
+    # Load dataset
     df = pd.read_csv(DATA_PATH)
-    
-    df = df.dropna(subset=['description', 'category', 'amount'])
-    df = preprocess_date(df)
+    print("Initial category distribution:")
+    print(df['category'].value_counts())
 
+    # Drop rows with missing values
+    df = df.dropna(subset=['category', 'description'])
+
+    # Filter out underrepresented classes
+    counts = df['category'].value_counts()
+    valid_categories = counts[counts >= 3].index
+    df = df[df['category'].isin(valid_categories)].reset_index(drop=True)
+
+    print("\nFiltered category distribution:")
+    print(df['category'].value_counts())
+
+    # Clean text
+    df['cleaned_description'] = df['description'].astype(str).apply(clean_text)
+
+    # Encode target
     le = LabelEncoder()
-    df['category_encoded'] = le.fit_transform(df['category'])
+    y = le.fit_transform(df['category'])
 
-    tfidf = TfidfVectorizer(stop_words='english', max_features=3000)
-    X_text = tfidf.fit_transform(df['description'])
+    # Train/test split
+    X_train, X_test, y_train, y_test = train_test_split(
+        df['cleaned_description'], y, test_size=0.2, stratify=y, random_state=42
+    )
 
-    y_cat = df['category_encoded']
-    clf = LogisticRegression(max_iter=300)
-    clf.fit(X_text, y_cat)
+    # TF-IDF with n-grams
+    tfidf = TfidfVectorizer(
+        stop_words=stopwords.words('english'),
+        ngram_range=(1, 2),  # use unigrams and bigrams
+        max_features=5000
+    )
+    X_train_vec = tfidf.fit_transform(X_train)
+    X_test_vec = tfidf.transform(X_test)
 
-    X_reg = df[['day', 'month', 'year', 'category_encoded']]
-    y_reg = df['amount']
+    # Logistic regression with class weight to handle imbalance
+    clf = LogisticRegression(max_iter=1000, class_weight='balanced')
+    clf.fit(X_train_vec, y_train)
 
-    X_train, X_test, y_train, y_test = train_test_split(X_reg, y_reg, test_size=0.2, random_state=42)
-    rf = RandomForestRegressor(n_estimators=100, random_state=42)
-    rf.fit(X_train, y_train)
+    # Evaluate
+    y_pred = clf.predict(X_test_vec)
+    print("\nClassification Report:")
+    print(classification_report(y_test, y_pred, target_names=le.classes_, zero_division=0))
 
-    model_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'app', 'expenses', 'models')
-    os.makedirs(model_dir, exist_ok=True)
+    # Save models
+    os.makedirs(MODEL_DIR, exist_ok=True)
+    joblib.dump(clf, os.path.join(MODEL_DIR, 'logistic_regression.pkl'))
+    joblib.dump(tfidf, os.path.join(MODEL_DIR, 'tfidf_vectorizer.pkl'))
+    joblib.dump(le, os.path.join(MODEL_DIR, 'label_encoder.pkl'))
 
-    joblib.dump(clf, os.path.join(model_dir, 'logistic_regression.pkl'))
-    joblib.dump(tfidf, os.path.join(model_dir, 'tfidf_vectorizer.pkl'))
-    joblib.dump(rf, os.path.join(model_dir, 'random_forest_regressor.pkl'))
-    joblib.dump(le, os.path.join(model_dir, 'label_encoder.pkl'))
+    print("\n✔ Saved: model, vectorizer, label encoder")
 
-    print("Models and encoders saved successfully.")
+    # Optional: train regression model for amounts
+    if 'amount' in df.columns:
+        df_reg = df.dropna(subset=['amount', 'category'])
+        if not df_reg.empty:
+            X_reg = le.transform(df_reg['category']).reshape(-1, 1)
+            y_reg = df_reg['amount']
+            rf = RandomForestRegressor(n_estimators=300, random_state=42)
+            rf.fit(X_reg, y_reg)
+            joblib.dump(rf, os.path.join(MODEL_DIR, 'random_forest_regressor.pkl'))
+            print("✔ Regression model saved.")
+        else:
+            print("⚠ No data left for regression.")
+    else:
+        print("⚠ 'amount' column not found. Skipping regression.")
 
 if __name__ == "__main__":
     main()

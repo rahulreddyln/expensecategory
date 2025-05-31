@@ -51,46 +51,72 @@ def main():
         df['cleaned_description'], y, test_size=0.2, stratify=y, random_state=42
     )
 
-    # TF-IDF with n-grams
+    # TF-IDF vectorizer
     tfidf = TfidfVectorizer(
         stop_words=stopwords.words('english'),
-        ngram_range=(1, 2),  # use unigrams and bigrams
+        ngram_range=(1, 2),
         max_features=5000
     )
     X_train_vec = tfidf.fit_transform(X_train)
     X_test_vec = tfidf.transform(X_test)
 
-    # Logistic regression with class weight to handle imbalance
+    # Logistic Regression classifier
     clf = LogisticRegression(max_iter=1000, class_weight='balanced')
     clf.fit(X_train_vec, y_train)
 
-    # Evaluate
+    # Evaluate classifier
     y_pred = clf.predict(X_test_vec)
     print("\nClassification Report:")
     print(classification_report(y_test, y_pred, target_names=le.classes_, zero_division=0))
 
-    # Save models
+    # Save classifier components
     os.makedirs(MODEL_DIR, exist_ok=True)
     joblib.dump(clf, os.path.join(MODEL_DIR, 'logistic_regression.pkl'))
     joblib.dump(tfidf, os.path.join(MODEL_DIR, 'tfidf_vectorizer.pkl'))
     joblib.dump(le, os.path.join(MODEL_DIR, 'label_encoder.pkl'))
 
-    print("\n✔ Saved: model, vectorizer, label encoder")
+    print("\n✔ Saved: classification model, vectorizer, label encoder")
 
-    # Optional: train regression model for amounts
-    if 'amount' in df.columns:
-        df_reg = df.dropna(subset=['amount', 'category'])
+    # Regression model (amount prediction)
+    if 'amount' in df.columns and 'date' in df.columns:
+        df_reg = df.dropna(subset=['amount', 'category', 'date']).copy()
+
+        # Flexible date parsing
+        df_reg['date_parsed'] = pd.to_datetime(df_reg['date'], errors='coerce')
+        df_reg = df_reg.dropna(subset=['date_parsed'])
+
+        # Extract features
+        df_reg['month'] = df_reg['date_parsed'].dt.month
+        df_reg['day'] = df_reg['date_parsed'].dt.day
+        df_reg['year'] = df_reg['date_parsed'].dt.year
+
+        print("✔ Parsed dates preview:")
+        print(df_reg[['date', 'date_parsed']].head())
+        print("✔ Regression dataset shape:", df_reg.shape)
+
+        # Filter unknown categories
+        df_reg = df_reg[df_reg['category'].isin(le.classes_)]
+
         if not df_reg.empty:
-            X_reg = le.transform(df_reg['category']).reshape(-1, 1)
-            y_reg = df_reg['amount']
+            category_encoded = le.transform(df_reg['category'])
+            X_reg = pd.DataFrame({
+                'category': category_encoded,
+                'month': df_reg['month'].values,
+                'day': df_reg['day'].values,
+                'year': df_reg['year'].values
+            })
+            y_reg = df_reg['amount'].values
+
             rf = RandomForestRegressor(n_estimators=300, random_state=42)
             rf.fit(X_reg, y_reg)
+
             joblib.dump(rf, os.path.join(MODEL_DIR, 'random_forest_regressor.pkl'))
-            print("✔ Regression model saved.")
+            print("✔ Regression model saved as random_forest_regressor.pkl.")
         else:
-            print("⚠ No data left for regression.")
+            print("⚠ No valid data left for regression after filtering.")
     else:
-        print("⚠ 'amount' column not found. Skipping regression.")
+        print("⚠ 'amount' or 'date' column not found. Skipping regression.")
 
 if __name__ == "__main__":
     main()
+

@@ -20,6 +20,8 @@ def create_app():
 
     from .auth.routes import auth
     from .expenses.routes import expenses
+    def inject_datetime():
+        return dict(datetime=datetime)
 
     app.register_blueprint(auth)
     app.register_blueprint(expenses)

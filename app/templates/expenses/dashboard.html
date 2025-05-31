@@ -17,7 +17,7 @@
     <tr>
       <td>{{ expense.date }}</td>
       <td>{{ expense.description }}</td>
-      <td>${{ '%.2f'|format(expense.amount) }}</td>
+      <td>₹{{ '%.2f'|format(expense.amount) }}</td>
       <td>{{ expense.category }}</td>
     </tr>
     {% endfor %}

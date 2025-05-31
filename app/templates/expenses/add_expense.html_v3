@@ -1,0 +1,135 @@
+{% extends 'base.html' %}
+{% block title %}Add Expense{% endblock %}
+
+{% block content %}
+<h2>Add Expense</h2>
+<form method="POST" novalidate id="expenseForm">
+  {{ form.hidden_tag() }}
+
+  <div class="mb-3">
+    <label for="date" class="form-label">Date</label>
+    <input
+      type="date"
+      class="form-control"
+      id="date"
+      name="date"
+      required
+      value="{{ request.form.date or '' }}"
+      max="{{ today }}"
+    >
+    <div id="dateError" class="text-danger small mt-1" style="display:none;"></div>
+  </div>
+
+  <div class="mb-3">
+    <label for="description" class="form-label">Description</label>
+    <input
+      type="text"
+      class="form-control"
+      id="description"
+      name="description"
+      required
+      value="{{ request.form.description or '' }}"
+    >
+  </div>
+
+  <div class="mb-3">
+    <label for="amount" class="form-label">Amount (in ₹)</label>
+    <input
+      type="number"
+      step="0.01"
+      class="form-control"
+      id="amount"
+      name="amount"
+      required
+      min="0.01"
+      max="10000000"
+      value="{{ request.form.amount or '' }}"
+    >
+    <div id="amountError" class="text-danger small mt-1" style="display:none;"></div>
+  </div>
+
+  <button type="submit" class="btn btn-primary" id="submitBtn" disabled>Add Expense</button>
+</form>
+
+<script>
+  const amountField = document.getElementById('amount');
+  const dateField = document.getElementById('date');
+  const submitBtn = document.getElementById('submitBtn');
+
+  const amountError = document.getElementById('amountError');
+  const dateError = document.getElementById('dateError');
+
+  function validateAmount() {
+    const val = amountField.value.trim();
+    const num = parseFloat(val);
+    if (!val) {
+      amountError.style.display = 'none';
+      return false;
+    }
+    if (isNaN(num) || num <= 0) {
+      amountError.textContent = "Amount must be greater than ₹0.";
+      amountError.style.display = 'block';
+      return false;
+    }
+    if (num > 10000000) {
+      amountError.textContent = "Amount cannot exceed ₹1 crore.";
+      amountError.style.display = 'block';
+      return false;
+    }
+    amountError.style.display = 'none';
+    return true;
+  }
+
+  function validateDate() {
+    const val = dateField.value;
+    const todayStr = new Date().toISOString().split('T')[0];
+    if (!val) {
+      dateError.textContent = "Date is required.";
+      dateError.style.display = 'block';
+      return false;
+    }
+    if (val > todayStr) {
+      dateError.textContent = "Date cannot be in the future.";
+      dateError.style.display = 'block';
+      return false;
+    }
+    dateError.style.display = 'none';
+    return true;
+  }
+
+  function validateForm() {
+    const isAmountValid = validateAmount();
+    const isDateValid = validateDate();
+    // Description required (native HTML required will handle)
+
+    submitBtn.disabled = !(isAmountValid && isDateValid);
+  }
+
+  amountField.addEventListener('input', () => {
+    validateAmount();
+    validateForm();
+  });
+
+  dateField.addEventListener('input', () => {
+    validateDate();
+    validateForm();
+  });
+
+  // Initial validation on page load (in case of pre-filled)
+  validateForm();
+
+  document.getElementById('expenseForm').addEventListener('submit', function(e) {
+    // Final check before submit
+    if (!validateAmount() || !validateDate()) {
+      e.preventDefault();
+      // Scroll to first error
+      if (amountError.style.display === 'block') {
+        amountField.focus();
+      } else if (dateError.style.display === 'block') {
+        dateField.focus();
+      }
+    }
+  });
+</script>
+{% endblock %}
+

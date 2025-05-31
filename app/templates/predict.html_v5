@@ -1,0 +1,162 @@
+{% extends 'base.html' %}
+
+{% block title %}Future Expense Prediction{% endblock %}
+
+{% block content %}
+<div class="container my-4">
+  <h2 class="mb-4">Predicted Future Expense</h2>
+
+  {% if category_predictions %}
+  <div class="mb-5">
+    <h3>Category-wise Predictions (Next 1 Month)</h3>
+    <div class="row">
+      <div class="col-md-6 d-flex align-items-center justify-content-center">
+        <canvas id="predictionPieChart" style="max-width: 100%; max-height: 300px;"></canvas>
+      </div>
+      <div class="col-md-6">
+        <table class="table table-hover table-bordered">
+          <thead class="table-dark">
+            <tr>
+              <th>Category</th>
+              {% for month in category_predictions.values()|first %}
+              <th>{{ month }}</th>
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for cat, preds in category_predictions.items() %}
+            <tr>
+              <td>{{ cat }}</td>
+              {% for amount in preds.values() %}
+              <td>₹{{ "%.2f"|format(amount) }}</td>
+              {% endfor %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <p>No category predictions available.</p>
+  {% endif %}
+
+  {% if monthly_data %}
+  <div class="mb-5">
+    <h3>Monthly Expense Aggregation</h3>
+    <div class="d-flex justify-content-center">
+      <canvas id="monthlyBarChart" style="max-width: 100%; max-height: 350px;"></canvas>
+    </div>
+    <table class="table table-striped mt-4">
+      <thead class="table-dark">
+        <tr>
+          <th>Year-Month</th>
+          <th>Category</th>
+          <th>Total Expense</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in monthly_data %}
+        <tr>
+          <td>{{ row.year_month }}</td>
+          <td>{{ row.category }}</td>
+          <td>₹{{ "%.2f"|format(row.total) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p>No monthly data available.</p>
+  {% endif %}
+
+  <a href="{{ url_for('expenses.dashboard') }}" class="btn btn-secondary mt-3">Back to Dashboard</a>
+</div>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  const pieCtx = document.getElementById('predictionPieChart').getContext('2d');
+  const pieLabels = {{ category_predictions.keys()|list|tojson }};
+  const pieValues = Object.values({{ category_predictions|tojson }}).map(v => Object.values(v)[0]);
+
+  new Chart(pieCtx, {
+    type: 'pie',
+    data: {
+      labels: pieLabels,
+      datasets: [{
+        data: pieValues,
+        backgroundColor: [
+          '#FF6384', '#36A2EB', '#FFCE56', '#66BB6A', '#BA68C8', '#FFA726', '#8D6E63'
+        ]
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        tooltip: {
+          callbacks: {
+            label: function(context) {
+              const val = context.raw.toLocaleString("en-IN", {style: "currency", currency: "INR"});
+              return `${context.label}: ${val}`;
+            }
+          }
+        },
+        legend: { position: 'bottom' }
+      }
+    }
+  });
+
+  const monthlyData = {{ monthly_data|tojson }};
+  const labels = [...new Set(monthlyData.map(e => e.year_month))];
+  const categories = [...new Set(monthlyData.map(e => e.category))];
+
+  const datasets = categories.map((cat, index) => {
+    const colorPalette = ['#42A5F5', '#AB47BC', '#26A69A', '#FFA726', '#EC407A', '#FF7043'];
+    const color = colorPalette[index % colorPalette.length];
+
+    return {
+      label: cat,
+      backgroundColor: color,
+      data: labels.map(label => {
+        const entry = monthlyData.find(e => e.year_month === label && e.category === cat);
+        return entry ? entry.total : 0;
+      })
+    };
+  });
+
+  const barCtx = document.getElementById('monthlyBarChart').getContext('2d');
+  new Chart(barCtx, {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: datasets
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        x: {
+          title: { display: true, text: 'Month' }
+        },
+        y: {
+          beginAtZero: true,
+          title: { display: true, text: 'Total Expense (₹)' }
+        }
+      },
+      plugins: {
+        legend: { position: 'bottom' },
+        tooltip: {
+          callbacks: {
+            label: function(context) {
+              return `${context.dataset.label}: ₹${context.raw.toLocaleString()}`;
+            }
+          }
+        }
+      }
+    }
+  });
+</script>
+{% endblock %}
+
