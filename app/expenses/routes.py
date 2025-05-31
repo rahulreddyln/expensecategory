@@ -62,3 +62,12 @@ def predict():
         monthly_data=monthly_data
     )
 
+@expenses.route('/expense_trends')
+@login_required
+def expense_trends():
+    user_expenses = Expense.query.filter_by(user_id=current_user.id).all()
+    monthly_df = aggregate_expenses_by_month(user_expenses)
+    monthly_data = monthly_df.to_dict(orient='records') if not monthly_df.empty else []
+
+    return render_template('trend_analysis.html', monthly_data=monthly_data)
+

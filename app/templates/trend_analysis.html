@@ -1,0 +1,93 @@
+{% extends 'base.html' %}
+
+{% block title %}Expense Trend Analysis{% endblock %}
+
+{% block content %}
+<div class="container my-4">
+  <h2>Expense Trend Analysis</h2>
+
+  {% if monthly_data %}
+  <canvas id="trendLineChart" style="max-width: 100%; max-height: 400px;"></canvas>
+
+  <table class="table table-striped mt-4">
+    <thead class="table-dark">
+      <tr>
+        <th>Year-Month</th>
+        <th>Category</th>
+        <th>Total Expense (₹)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in monthly_data %}
+      <tr>
+        <td>{{ row.year_month }}</td>
+        <td>{{ row.category }}</td>
+        <td>₹{{ "%.2f"|format(row.total) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p>No expense data available to show trends.</p>
+  {% endif %}
+
+  <a href="{{ url_for('expenses.dashboard') }}" class="btn btn-secondary mt-3">Back to Dashboard</a>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+  const monthlyData = {{ monthly_data|tojson }};
+  const labels = [...new Set(monthlyData.map(e => e.year_month))].sort();
+  const categories = [...new Set(monthlyData.map(e => e.category))];
+
+  const colorPalette = ['#42A5F5', '#AB47BC', '#26A69A', '#FFA726', '#EC407A', '#FF7043', '#8D6E63', '#FF6384'];
+
+  const datasets = categories.map((cat, index) => {
+    const color = colorPalette[index % colorPalette.length];
+    return {
+      label: cat,
+      fill: false,
+      borderColor: color,
+      backgroundColor: color,
+      data: labels.map(label => {
+        const entry = monthlyData.find(e => e.year_month === label && e.category === cat);
+        return entry ? entry.total : 0;
+      }),
+      tension: 0.2
+    };
+  });
+
+  const ctx = document.getElementById('trendLineChart').getContext('2d');
+  new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: datasets
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { position: 'bottom' },
+        tooltip: {
+          callbacks: {
+            label: function(context) {
+              return `${context.dataset.label}: ₹${context.parsed.y.toLocaleString()}`;
+            }
+          }
+        }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          title: { display: true, text: 'Expense Amount (₹)' }
+        },
+        x: {
+          title: { display: true, text: 'Month' }
+        }
+      }
+    }
+  });
+</script>
+{% endblock %}
+

@@ -15,7 +15,8 @@
         {% if current_user.is_authenticated %}
           <li class="nav-item"><a class="nav-link" href="{{ url_for('expenses.dashboard') }}">Dashboard</a></li>
           <li class="nav-item"><a class="nav-link" href="{{ url_for('expenses.add_expense') }}">Add Expense</a></li>
-          <li class="nav-item"><a class="nav-link" href="{{ url_for('expenses.predict') }}">Predict Future</a></li>
+	  <li class="nav-item"><a class="nav-link" href="{{ url_for('expenses.predict') }}">Predict Future</a></li>
+	  <li class="nav-item"><a class="nav-link" href="{{ url_for('expenses.expense_trends') }}">Expense Trends</a></li>
           <li class="nav-item"><a class="nav-link" href="{{ url_for('auth.logout') }}">Logout</a></li>
         {% else %}
           <li class="nav-item"><a class="nav-link" href="{{ url_for('auth.login') }}">Login</a></li>

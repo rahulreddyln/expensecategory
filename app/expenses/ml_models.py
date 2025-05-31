@@ -12,7 +12,6 @@ def predict_next_month_by_category(expenses):
     if not expenses:
         return {}
 
-    # Prepare DataFrame
     data = []
     for e in expenses:
         expense_date = e.date if isinstance(e.date, datetime) else datetime.strptime(e.date, "%Y-%m-%d")
@@ -23,17 +22,14 @@ def predict_next_month_by_category(expenses):
         })
     df = pd.DataFrame(data)
 
-    # Extract features
     df['month'] = df['date'].dt.month
     df['category_encoded'] = LabelEncoder().fit_transform(df['category'])
 
-    # Train the model
     X = df[['category_encoded', 'month']]
     y = df['amount']
     model = RandomForestRegressor(n_estimators=100, random_state=42)
     model.fit(X, y)
 
-    # Future prediction
     le = LabelEncoder()
     le.fit(df['category'])
     categories = df['category'].unique()
